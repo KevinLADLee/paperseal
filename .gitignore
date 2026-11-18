@@ -1,0 +1,8 @@
+/upstream-PDFQFZ/
+/.local-tools/
+/dist/
+/target/
+/desktop/gen/
+/release/
+/qa-output/
+__pycache__/

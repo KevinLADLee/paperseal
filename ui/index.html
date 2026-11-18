@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>纸印 · PDF 盖章</title><link rel="stylesheet" href="./style.css"></head>
+<body>
+<header><div class="brand"><span class="seal-logo" aria-hidden="true">印</span><div><strong>纸印</strong><small>PAPERSEAL</small></div></div>
+<label class="mode">骑缝章<select id="seamMode"><option value="all">加盖骑缝章</option><option value="none">不加骑缝章</option><option value="odd">单页骑缝章（奇数页）</option><option value="even">双页骑缝章（偶数页）</option><option value="custom">随意骑缝章（选页）</option></select></label>
+<label class="mode">普通章<select id="normalMode"><option value="custom">自定义加印章</option><option value="none">全都不加印章</option><option value="exceptFirst">首页不加印章</option><option value="exceptLast">尾页不加印章</option><option value="all">所有页加印章</option><option value="odd">奇数页加印章</option><option value="even">偶数页加印章</option></select></label>
+<label class="mode">输出<select id="outputMode"><option value="overlay">叠加</option><option value="flat">合并为图片</option></select></label></header>
+<main>
+<section class="workspace" aria-label="文档预览">
+  <nav class="preview-toolbar" aria-label="文档翻页">
+    <strong id="name">文档预览</strong>
+    <div class="pager">
+      <div class="page-pair">
+        <button id="first" disabled>首页</button>
+        <button id="prev" disabled>上一页</button>
+      </div>
+      <label class="page-number">
+        第 <input id="page" type="number" min="1" value="1" aria-label="当前页" disabled>
+        <span>/ <span id="total">—</span> 页</span>
+      </label>
+      <div class="page-pair">
+        <button id="next" disabled>下一页</button>
+        <button id="last" disabled>尾页</button>
+      </div>
+    </div>
+  </nav>
+  <div class="stage" id="stage">
+    <div class="empty" id="empty"><div aria-hidden="true" class="sheet-icon"><i></i><i></i><i></i><b>印</b></div><h1>打开一份 PDF</h1><p>在页面上放置印章、签字或骑缝章</p><button id="openEmpty" class="primary">选择 PDF 文件</button></div>
+    <div id="paper" hidden><canvas id="canvas"></canvas><div id="overlays"></div></div>
+  </div>
+</section>
+<aside>
+<h2>文件与印章</h2>
+<div class="file-fields">
+  <label for="open">PDF 文件</label>
+  <span class="path source-file" id="sourcePath">未选择</span>
+  <button id="open" aria-label="选择 PDF 文件">选择…</button>
+
+  <label for="destination">保存位置</label>
+  <select id="destination"><option value="source">源文件夹</option><option value="folder">指定目录</option><option value="dialog">每次另存为</option></select>
+  <button id="folder" title="选择盖章副本保存目录">选择目录…</button>
+  <p class="path folder-path" id="folderPath" hidden></p>
+
+  <label for="activeSeal">印章图片</label>
+  <select id="activeSeal"><option value="">请选择印章</option></select>
+  <button id="importSeal">导入…</button>
+</div>
+<div class="params" id="classicParams">
+<label>印章尺寸 <span><input id="stampWidth" type="number" min="1" max="300" step="any" value="45" required> mm</span></label>
+<label>不透明度 <span><input id="stampOpacity" type="number" min="0" max="100" value="100" required> %</span></label>
+<label>旋转角度 <span><input id="stampAngle" type="number" min="-360" max="360" value="0" required> °</span></label>
+<label>旋转切边 <select id="stampCrop"><option value="expand">不切边</option><option value="crop">切边</option></select></label>
+<label>骑缝章位置 <select id="seamEdge"><option value="right">右</option><option value="left">左</option><option value="top">上</option><option value="bottom">下</option></select></label>
+<label>沿边位置 <span><input id="seamAlong" type="number" min="0" max="100" step="any" value="10" required> %</span></label>
+<label>每组最多页数 <input id="seamLimit" title="相邻两组共用一页，交接页保留两段章" type="number" min="2" max="10000" value="8" required></label>
+<label><span>白底透明</span><input id="stampWhite" type="checkbox"></label>
+<label id="classicTolerance" hidden>去白容差 <input id="stampTolerance" type="number" min="0" max="255" value="10" required></label>
+</div>
+<label id="seamPickRow" hidden><input type="checkbox" id="seamPick">本页参加骑缝 <span id="pickCount"></span></label>
+<p id="classicHint" class="hint"></p>
+<div class="run-row"><button id="save" class="primary" disabled>盖章</button><button id="openOutput" title="打开最近一次成功保存副本的文件夹" disabled>打开输出文件夹</button><button id="undo" disabled>撤销</button><button id="repeat" aria-pressed="false" disabled>连续签章</button></div>
+<p id="repeatHint" class="hint" hidden></p><p id="count"></p>
+<details id="extraTools"><summary>追加印章或签字图片</summary><div class="tools">
+  <button id="stamp" class="tool" disabled><span class="glyph stamp-glyph" aria-hidden="true">章</span><span>添加印章</span><span class="plus">+</span></button>
+  <button id="signature" class="tool" disabled><span class="glyph sign-glyph" aria-hidden="true">✎</span><span>签字图片</span><span class="plus">+</span></button>
+  <button id="seam" class="tool" disabled><span class="glyph seam-glyph" aria-hidden="true">◧</span><span>骑缝章</span><span class="plus">+</span></button>
+</div><input type="file" id="imageFile" accept="image/png,image/jpeg" hidden>
+<section id="selection" hidden><h2 id="selectedTitle">已选印章</h2><label class="size">实际宽度 <span><input id="mm" type="number" min="1" max="300" step="0.5"> mm</span></label>
+<p class="hint" id="moveHint"></p><button id="settings">页码与外观…</button>
+<button id="remove" class="remove" title="删除所选标记 (Delete)">删除所选 (Del)</button></section>
+</details><details id="outputSettings"><summary>导出设置</summary>
+<label id="dpiRow" hidden>图片分辨率<select id="dpi"><option>72</option><option>150</option><option selected>300</option><option>600</option></select> DPI</label>
+<p class="hint" id="flatNote" hidden>图片副本将失去可搜索文字、链接和交互表单。</p>
+<label>副本密码<select id="protection"><option value="keep">沿用源文件保护</option><option value="new">设置新密码</option><option value="none">不加密</option></select></label>
+<label id="outputPassRow" hidden>新密码<input type="password" id="outputPass" autocomplete="new-password"></label>
+</details>
+<section class="run-log"><h2>处理记录</h2><ol id="log"></ol></section>
+</aside></main><footer role="status" aria-live="polite" id="status">就绪</footer>
+<dialog id="library" aria-labelledby="libraryTitle">
+  <div class="library-head"><h2 id="libraryTitle">常用图片</h2><button id="closeLibrary" aria-label="关闭图片库">×</button></div>
+  <div id="savedImages"></div>
+  <button id="browseImage" class="primary">从文件选择…</button>
+</dialog>
+<dialog id="markSettings"><form id="markForm">
+  <h2 id="settingsTitle">页码与外观</h2>
+  <label>应用页码<select id="scope"><option value="current">当前页</option><option value="all">全部页</option><option value="exceptFirst">除首页</option><option value="exceptLast">除尾页</option><option value="odd">奇数页</option><option value="even">偶数页</option><option value="custom">指定页码</option></select></label>
+  <label id="rangeRow" hidden>指定页码<input id="range" placeholder="例如 1, 3-6, 9"></label>
+  <fieldset id="seamSettings"><legend>骑缝章</legend>
+    <label>页边<select id="edge"><option value="right">右</option><option value="left">左</option><option value="top">上</option><option value="bottom">下</option></select></label>
+    <label>沿边位置（%）<input type="number" id="along" min="0" max="100" step="any"></label>
+    <label>每枚章最多分几页<input type="number" id="limit" min="2" step="1"></label>
+  </fieldset>
+  <fieldset><legend>图片外观</legend>
+    <label>顺时针旋转（°）<input type="number" id="angle" min="-360" max="360" step="any" required></label>
+    <label>旋转画布<select id="crop"><option value="expand">保留完整图片</option><option value="crop">按原尺寸切边</option></select></label>
+    <label>不透明度（%）<input type="number" id="opacity" min="0" max="100" required></label>
+    <label>白底转透明<input type="checkbox" id="white"></label>
+    <label id="toleranceRow">去白容差（0–255）<input type="number" id="tolerance" min="0" max="255"></label>
+  </fieldset>
+  <p role="alert" class="form-error" id="settingsError"></p>
+  <div class="actions"><button type="button" id="cancelSettings">取消</button><button class="primary" type="submit" id="applySettings">应用</button></div>
+</form></dialog>
+<dialog id="passwordDialog"><form method="dialog" id="passwordForm"><h2 id="passTitle">请输入 PDF 打开密码</h2><input id="sourcePass" type="password" aria-label="PDF 打开密码" autocomplete="off"><div class="actions"><button type="button" id="cancelPass">取消</button><button class="primary" value="ok">打开</button></div></form></dialog>
+<script type="module" src="./app.js"></script></body></html>
