@@ -10,6 +10,10 @@
 <section class="workspace" aria-label="文档预览">
   <nav class="preview-toolbar" aria-label="文档翻页">
     <strong id="name">文档预览</strong>
+    <select id="zoom" aria-label="预览缩放" disabled>
+      <option value="fit">适合整页</option><option value="width">适合宽度</option>
+      <option value="1.5">放大 1.5 倍</option><option value="2">放大 2 倍</option><option value="3">放大 3 倍</option>
+    </select>
     <div class="pager">
       <div class="page-pair">
         <button id="first" disabled>首页</button>
@@ -47,7 +51,7 @@
   <button id="importSeal">导入…</button>
 </div>
 <div class="params" id="classicParams">
-<label>印章尺寸 <span><input id="stampWidth" type="number" min="1" max="300" step="any" value="45" required> mm</span></label>
+<button id="calibrate" type="button" disabled>管理当前印章…</button>
 <label>不透明度 <span><input id="stampOpacity" type="number" min="0" max="100" value="100" required> %</span></label>
 <label>旋转角度 <span><input id="stampAngle" type="number" min="-360" max="360" value="0" required> °</span></label>
 <label>旋转切边 <select id="stampCrop"><option value="expand">不切边</option><option value="crop">切边</option></select></label>
@@ -58,6 +62,7 @@
 <label id="classicTolerance" hidden>去白容差 <input id="stampTolerance" type="number" min="0" max="255" value="10" required></label>
 </div>
 <label id="seamPickRow" hidden><input type="checkbox" id="seamPick">本页参加骑缝 <span id="pickCount"></span></label>
+<button id="replacePrimary" hidden>替换本合同主章</button>
 <p id="classicHint" class="hint"></p>
 <div class="run-row"><button id="save" class="primary" disabled>盖章</button><button id="openOutput" title="打开最近一次成功保存副本的文件夹" disabled>打开输出文件夹</button><button id="undo" disabled>撤销</button><button id="repeat" aria-pressed="false" disabled>连续签章</button></div>
 <p id="repeatHint" class="hint" hidden></p><p id="count"></p>
@@ -100,6 +105,18 @@
   </fieldset>
   <p role="alert" class="form-error" id="settingsError"></p>
   <div class="actions"><button type="button" id="cancelSettings">取消</button><button class="primary" type="submit" id="applySettings">应用</button></div>
+</form></dialog>
+<dialog id="sealCard"><form method="dialog" id="sealForm">
+  <h2 id="sealCardTitle">登记印章</h2>
+  <img id="cardPreview" alt="印章预览">
+  <label>印章名称<input id="sealName" required maxlength="160"></label>
+  <label>实物宽度（圆章填直径）<span><input id="sealSize" type="number" min="1" max="300" step="any" required> mm</span></label>
+  <p class="hint">请使用已裁去多余空白的图片。登记后，每次盖章都沿用这个尺寸。</p>
+  <div class="actions"><button id="cancelCard" type="button">取消</button><button class="primary" value="ok">保存</button></div>
+</form></dialog>
+<dialog id="leaveDialog"><form method="dialog">
+  <h2>合同有未保存的修改</h2><p id="leaveName"></p>
+  <div class="actions"><button value="cancel" autofocus>继续编辑</button><button value="discard">放弃修改</button><button class="primary" id="saveLeave" value="save">保存副本</button></div>
 </form></dialog>
 <dialog id="passwordDialog"><form method="dialog" id="passwordForm"><h2 id="passTitle">请输入 PDF 打开密码</h2><input id="sourcePass" type="password" aria-label="PDF 打开密码" autocomplete="off"><div class="actions"><button type="button" id="cancelPass">取消</button><button class="primary" value="ok">打开</button></div></form></dialog>
 <script type="module" src="./app.js"></script></body></html>

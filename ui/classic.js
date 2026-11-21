@@ -1,10 +1,10 @@
 import {targetPages, horizontalEdge, styledImage} from "./stamp-options.js";
 
 export const defaults = {
-  normalMode:"custom", seamMode:"all", stampWidth:45, stampOpacity:100, stampAngle:0,
+  normalMode:"custom", seamMode:"all", stampOpacity:100, stampAngle:0,
   stampCrop:"expand", stampWhite:false, stampTolerance:10, seamEdge:"right", seamAlong:10, seamLimit:8
 };
-export const emptyPageSettings = () => ({points:{}, excluded:[], seamPages:[], fallback:[0.5,0.5]});
+export const emptyPageSettings = () => ({primary:null, points:{}, excluded:[], seamPages:[], fallback:[0.5,0.5]});
 
 export function scopePages(mode, count, picked) {
   if (mode === "none") return [];
@@ -28,12 +28,13 @@ export async function makeStamp(state, assets, seam=false) {
   }
   const {aspect,scale} = assets[asset];
   return {classic:true, kind:seam?"seam":"stamp", seam, original, asset, aspect, scale, style,
-    mm:cfg.stampWidth, edge:cfg.seamEdge, limit:cfg.seamLimit,
+    mm:image.mm, edge:cfg.seamEdge, limit:cfg.seamLimit,
     x:seam?cfg.seamAlong/100:state.fallback[0], y:seam?cfg.seamAlong/100:state.fallback[1]};
 }
 
 export async function documentStamps(state, count, assets) {
   const result = [];
+  state = {...state, image:state.primary || state.image};
   if (!state.image) return result;
   const {cfg,points,excluded,seamPages} = state;
   const seam = scopePages(cfg.seamMode,count,seamPages);

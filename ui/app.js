@@ -14,17 +14,22 @@ let renderVersion = 0, rendering = null, tool = "stamp", drag = null;
 let inputPassword = "";
 let libraryImages = [], repeat = false, brush = null;
 const pendingClicks = [];
-let placingClicks = false;
+let placingClicks = false, nextClickAdds = false;
 let hasSavedCopy = false;
 let preferences = {};
 try { preferences = JSON.parse(localStorage.getItem("paperseal.setup")) || {}; } catch {}
 // Older releases saved their 20-page default along with every image choice.
 if (!preferences.seamGrouping && preferences.cfg?.seamLimit === 20) preferences.cfg.seamLimit = defaults.seamLimit;
+const previousWidth = preferences.registrationWidth || preferences.cfg?.stampWidth || 45;
+if (preferences.cfg) delete preferences.cfg.stampWidth;
 let classic = {cfg:{...defaults,...preferences.cfg}, image:null, ...emptyPageSettings()};
 let folderPath = "", destination = "source";
 
 function rememberSetup() {
-  try { localStorage.setItem("paperseal.setup",JSON.stringify({seamGrouping:1,cfg:classic.cfg,image:classic.image?.id,output:$("outputMode").value})); } catch {}
+  try { localStorage.setItem("paperseal.setup",JSON.stringify({seamGrouping:1,registrationWidth:previousWidth,cfg:classic.cfg,image:classic.image?.id,output:$("outputMode").value})); } catch {}
+}
+function usingOtherSeal() {
+  return classic.primary && classic.image && (classic.primary.url !== classic.image.url || classic.primary.mm !== classic.image.mm);
 }
 function syncSetup() {
   for (const key of Object.keys(defaults)) {
@@ -32,6 +37,9 @@ function syncSetup() {
     if (el.type === "checkbox") el.checked = classic.cfg[key]; else el.value = classic.cfg[key];
     el.disabled = busy;
   }
+  $("calibrate").disabled = busy || !classic.image;
+  $("replacePrimary").hidden = !usingOtherSeal();
+  $("replacePrimary").disabled = busy;
   $("classicTolerance").hidden = !classic.cfg.stampWhite;
   $("seamPickRow").hidden = classic.cfg.seamMode !== "custom";
   $("seamPick").disabled = !pdf || busy;
@@ -43,12 +51,15 @@ function syncSetup() {
   $("folderPath").hidden = destination !== "folder";
   $("folderPath").textContent = $("folderPath").title = folderPath;
   $("classicHint").textContent = !classic.image ? "从印章图片列表选择常用章，或点「导入」。"
+    : usingOtherSeal() ? "当前主章为「"+classic.primary.name+"」。点击预览可追加「"+classic.image.name+"」。"
     : classic.cfg.normalMode === "custom" ? "在预览中点击盖章位置。同页再点可移位，双击普通章可清除本页点位。"
     : classic.cfg.normalMode === "none" ? "普通章已关闭。可翻页检查骑缝章。" : "点击预览可调整普通章位置。已单独定位的页会保留各自的位置。";
 }
 async function applySetup(next, focusKind, record=true) {
   if (pdf) {
     const automatic = await documentStamps(next,pages.length,assets);
+    if (automatic.length && !next.primary) next={...next,primary:next.image};
+    if (!automatic.length) next={...next,primary:null};
     const focus = automatic.findIndex(m=>m.kind===focusKind);
     await change([...automatic,...marks.filter(m=>!m.classic)],focus,record,next);
   } else { classic=next; controls(); }
@@ -93,6 +104,7 @@ function controls() {
   const active = Boolean(pdf) && !busy;
   for (const id of ["open", "openEmpty"]) $(id).disabled = busy;
   for (const id of ["stamp", "signature", "page"]) $(id).disabled = !active;
+  $("zoom").disabled = !active;
   $("seam").disabled = !active || pages.length < 2;
   $("seam").title = "添加后可设置页边、页码、沿边位置和最大分割数";
   $("save").disabled = !active || !marks.length;
@@ -122,7 +134,8 @@ function controls() {
   if (mark && !mark.classic) {
     $("selectedTitle").textContent = labels[mark.kind];
     $("mm").value = mark.mm;
-    $("mm").disabled = $("remove").disabled = $("settings").disabled = !active;
+    $("mm").disabled = !active || mark.kind !== "signature";
+    $("remove").disabled = $("settings").disabled = !active;
     $("moveHint").hidden = repeat;
     $("moveHint").textContent = mark.seam ? "沿页边拖动可调整整组位置；宽度指原始完整印章。" : "拖动标记可调整当前页的位置。";
   }
@@ -161,7 +174,12 @@ async function change(next, focus, record = true, nextSetup = classic) {
   marks = next; placements = plan; selected = focus; classic = nextSetup;
   drawOverlays(); controls();
 }
-async function render() {
+function viewportCenter() {
+  const r=$("paper").getBoundingClientRect(), s=$("stage").getBoundingClientRect();
+  return [clamp((s.left+s.width/2-r.left)/r.width),clamp((s.top+s.height/2-r.top)/r.height)];
+}
+$("zoom").onchange=()=>render(viewportCenter());
+async function render(center) {
   if (!pdf) return;
   const version = ++renderVersion;
   rendering?.cancel();
@@ -170,12 +188,17 @@ async function render() {
     if (version !== renderVersion) return;
     const meta = pages[current], stage = $("stage");
     const scale = Math.min((stage.clientWidth-68)/meta.width,(stage.clientHeight-54)/meta.height);
-    const displayScale = Math.max(0.05, scale);
+    const mode=$("zoom").value;
+    const displayScale=Math.max(0.05,mode==="width" ? (stage.clientWidth-68)/meta.width : scale*(Number(mode)||1));
     const paper = $("paper");
     paper.dataset.page = current;
     paper.hidden = false; $("empty").hidden = true;
     paper.style.width = meta.width * displayScale + "px";
     paper.style.height = meta.height * displayScale + "px";
+    if (Array.isArray(center)) {
+      const r=paper.getBoundingClientRect(), s=stage.getBoundingClientRect();
+      stage.scrollBy(r.left+r.width*center[0]-s.left-s.width/2, r.top+r.height*center[1]-s.top-s.height/2);
+    }
     // A separate canvas also isolates cancelled renders while rapidly paging.
     const canvas = document.createElement("canvas");
     canvas.id = "canvas";
@@ -191,7 +214,7 @@ async function render() {
   } catch (e) { if (version === renderVersion && e.name !== "RenderingCancelledException") status("预览失败：" + e.message, true); }
 }
 async function openPdf() {
-  if (pdf && JSON.stringify(marks) !== savedState && !confirm("当前文档有尚未保存的修改，继续打开其他 PDF？")) return;
+  if (!await mayLeave()) return;
   const opened = await invoke("open_pdf");
   if (!opened) return;
   let nextPdf, accepted = false;
@@ -231,7 +254,8 @@ async function openPdf() {
     pdf = nextPdf; sourceId = opened.id; pages = nextPages; accepted = true;
     inputPassword=password; $("outputPass").value=""; $("protection").value="keep"; $("outputPassRow").hidden=true;
     current = 0; selected = -1; history = []; marks = []; placements = []; assets = []; savedState = "[]";
-    repeat = false; brush = null;
+    repeat = false; brush = null; nextClickAdds = false;
+    $("zoom").value="fit"; $("stage").scrollTo(0,0);
     classic = {...classic,...emptyPageSettings()};
     $("sourcePath").textContent = $("sourcePath").title = opened.path;
     $("name").textContent = opened.name; $("name").title = opened.name;
@@ -252,6 +276,7 @@ $("cancelPass").onclick=()=>$("passwordDialog").close("cancel");
 function navigate(n) {
   if (!pdf || busy) return;
   current = Math.max(0, Math.min(pages.length-1, n));
+  $("stage").scrollTo(0,0);
   if (!placements.some(p=>p.mark===selected && p.page===current)) selected = -1;
   controls(); render();
 }
@@ -268,17 +293,61 @@ async function refreshLibrary() {
   libraryImages = (await listImages()).sort((a,b) => b.used-a.used);
   populateSealList();
 }
+function sealLabel(item) { return item.name+" · "+(item.mm ? item.mm+" mm" : "待登记尺寸"); }
 function populateSealList() {
   const options=libraryImages.filter(i=>i.group==="stamp");
   if (classic.image && !options.some(i=>i.id===classic.image.id)) options.unshift(classic.image);
-  $("activeSeal").replaceChildren(new Option("请选择印章",""),...options.map(i=>new Option(i.name,String(i.id))));
+  $("activeSeal").replaceChildren(new Option("请选择印章",""),...options.map(i=>new Option(sealLabel(i),String(i.id))));
   syncSetup();
 }
 $("importSeal").onclick=()=>{tool="classic"; browseImage();};
 $("activeSeal").onchange=e=>{
   const image=libraryImages.find(i=>String(i.id)===e.target.value) || (e.target.value ? classic.image : null);
-  work(()=>applySetup({...classic,image}));
+  work(async()=>{
+    const item=image && !image.mm ? await registerSeal(image) : image;
+    if (image && !item) return;
+    await chooseSeal(item);
+  });
 };
+async function chooseSeal(image) {
+  const switched=image && (classic.image?.url!==image.url || classic.image?.mm!==image.mm);
+  if (classic.primary || !pdf) {
+    classic={...classic,image};
+    selected=-1;
+    nextClickAdds=Boolean(switched && marks.length);
+    drawOverlays();
+    rememberSetup();
+  } else {
+    await applySetup({...classic,image});
+  }
+  if (repeat) brush=image ? await makeStamp(classic,assets) : null;
+  populateSealList();
+}
+async function registerSeal(image) {
+  const card=$("sealCard");
+  $("sealCardTitle").textContent=image.mm ? "管理当前印章" : "登记印章";
+  $("cardPreview").src=image.url;
+  $("sealName").value=image.name;
+  $("sealSize").value=image.mm || previousWidth;
+  card.returnValue="";
+  const answer=new Promise(resolve=>card.addEventListener("close",()=>resolve(card.returnValue),{once:true}));
+  card.showModal();
+  if (await answer!=="ok") return null;
+  const updated={name:$("sealName").value.trim() || image.name, mm:$("sealSize").valueAsNumber,url:image.url,aspect:image.aspect};
+  try {
+    await rememberImage("stamp",updated); await refreshLibrary();
+    return libraryImages.find(i=>i.group==="stamp" && i.url===image.url);
+  } catch {
+    status("本机缓存写入失败，当前会话仍可使用这枚章。",true);
+    return {...updated,id:image.id || crypto.randomUUID(),group:"stamp"};
+  }
+}
+$("cancelCard").onclick=()=>$("sealCard").close("cancel");
+$("calibrate").onclick=()=>work(async()=>{
+  const item=await registerSeal(classic.image);
+  if (item) await chooseSeal(item);
+});
+$("replacePrimary").onclick=()=>work(async()=>{ await applySetup({...classic,primary:classic.image}); nextClickAdds=false; });
 function browseImage() {
   if ($("library").open) $("library").close();
   $("imageFile").value = "";
@@ -296,11 +365,14 @@ function drawLibrary() {
     const img = document.createElement("img");
     img.src = item.url; img.alt = "";
     const name = document.createElement("span");
-    name.textContent = item.name;
+    name.textContent = item.group==="stamp" ? sealLabel(item) : item.name;
     pick.append(img,name);
     pick.onclick = () => {
       $("library").close();
-      work(() => useImage(item));
+      work(async()=>{
+        const registered = item.group==="stamp" && !item.mm ? await registerSeal(item) : item;
+        if (registered) await useImage(registered);
+      });
     };
     const forget = document.createElement("button");
     forget.className = "forget"; forget.textContent = "移除";
@@ -338,24 +410,21 @@ $("imageFile").onchange = e => work(async () => {
     url = canvas.toDataURL("image/png"); aspect = canvas.width/canvas.height;
   } finally { URL.revokeObjectURL(raw); }
   const image = { name: file.name, url, aspect };
-  if (tool==="classic") {
-    let item={...image,id:"session"}, cached=true;
-    try {
-      await rememberImage("stamp",image); await refreshLibrary();
-      item=libraryImages.find(i=>i.group==="stamp" && i.url===url) || item;
-    } catch { cached=false; }
-    await applySetup({...classic,image:item}); populateSealList();
-    status(cached?"已选用 "+file.name:"已载入图片，本机缓存失败。",!cached);
+  if (tool!=="signature") {
+    const existing=libraryImages.find(i=>i.group==="stamp" && i.url===url);
+    const item=existing?.mm ? existing : await registerSeal(existing || image);
+    if (!item) return;
+    if (tool==="classic") await chooseSeal(item); else await useImage(item);
     return;
   }
   await useImage(image);
   try { await rememberImage(imageGroup(tool), image); await refreshLibrary(); }
   catch { status("图片已载入，本机常用图片库保存失败。", true); }
 });
-async function useImage({ url, aspect }) {
+async function useImage({ url, aspect, mm:registeredWidth }) {
   const available = tool === "seam" ? pages : [pages[current]];
   const fit = available.reduce((v,p) => Math.min(v,p.width,p.height*aspect), Infinity) * 25.4/72;
-  const mm = Math.min(tool === "signature" ? 48 : 40, Math.floor(fit));
+  const mm = tool === "signature" ? Math.min(48,Math.floor(fit)) : registeredWidth;
   let asset = assets.findIndex(item => item.url === url);
   if (asset < 0) { asset = assets.length; assets.push({url}); }
   const mark = { asset, original:asset, page: current, seam: tool === "seam", kind: tool, x: 0.5, y: 0.5, mm, aspect };
@@ -430,6 +499,7 @@ $("markForm").onsubmit=e=>{
   });
 };
 $("mm").onchange = e => {
+  if (marks[selected]?.kind!=="signature") return;
   const mm = Number(e.target.value);
   work(async () => {
     await modify({ mm });
@@ -460,7 +530,8 @@ $("undo").onclick = () => work(async () => {
   const last = history.at(-1);
   if (!last) return;
   current = last.current;
-  await change(last.marks,last.selected,false,last.classic); history.pop();
+  await change(last.marks,last.selected,false,{...last.classic,image:classic.image}); history.pop();
+  nextClickAdds=false;
   if (repeat && brush?.classic) brush=classic.image ? await makeStamp(classic,assets) : null;
   populateSealList(); rememberSetup(); await render(); status("已撤销上一步");
 });
@@ -490,6 +561,14 @@ function pinPosition(x,y) {
     excluded:classic.excluded.filter(n=>n!==current)},"stamp");
 }
 async function clickPreview(cx,cy) {
+  if (nextClickAdds || usingOtherSeal()) {
+    const stamp=await makeStamp(classic,assets), p=pages[current];
+    const width=stamp.mm*72/25.4*stamp.scale, height=width/stamp.aspect;
+    const x=clamp((cx-width/2)/(p.width-width || 1)), y=clamp((cy-height/2)/(p.height-height || 1));
+    await change([...marks,{...stamp,classic:false,page:current,x,y}],marks.length);
+    nextClickAdds=false;
+    return;
+  }
   const {normalMode,seamMode}=classic.cfg;
   if (normalMode==="none" || (normalMode!=="custom" && !scopePages(normalMode,pages.length,[]).includes(current))) {
     if (seamMode==="custom" && !classic.seamPages.includes(current))
@@ -511,7 +590,7 @@ layer.onpointerdown = e => {
   const hit = e.target.closest(".mark");
   if (hit) selected = Number(hit.dataset.mark);
   const p = hit?.placement ?? placements.find(p => p.page === current && p.mark === selected);
-  if (!hit && classic.image && (!p || marks[selected].classic)) {
+  if (!hit && classic.image && (nextClickAdds || !p || marks[selected].classic)) {
     const point=pointer(e); work(()=>clickPreview(...point)); return;
   }
   if (!p) return;
@@ -600,7 +679,9 @@ async function saveDocument() {
     savedState = JSON.stringify(marks);
     logResult("已盖章 · "+path);
     status("副本已保存至 " + path);
+    return true;
   }
+  return false;
 }
 $("openOutput").onclick = () => work(() => invoke("open_output_folder"));
 $("save").onclick = () => work(async () => {
@@ -608,8 +689,25 @@ $("save").onclick = () => work(async () => {
   catch (e) {logResult("盖章失败 · "+String(e.message||e)); throw e;}
 });
 $("outputMode").value=preferences.output==="flat"?"flat":"overlay"; syncOutput();
+async function mayLeave() {
+  if (!pdf || JSON.stringify(marks)===savedState) return true;
+  const dialog=$("leaveDialog"); dialog.returnValue="";
+  $("leaveName").textContent=$("name").textContent;
+  $("saveLeave").disabled=!marks.length;
+  const answer=new Promise(resolve=>dialog.addEventListener("close",()=>resolve(dialog.returnValue),{once:true}));
+  dialog.showModal();
+  const choice=await answer;
+  if (choice==="save") return await saveDocument();
+  return choice==="discard";
+}
 controls();
 work(async()=>{
+  const win=window.__TAURI__.window.getCurrentWindow();
+  await win.onCloseRequested(async e=>{
+    e.preventDefault();
+    if (busy) return;
+    await work(async()=>{ if (await mayLeave()) await win.destroy(); });
+  });
   await refreshLibrary();
-  classic={...classic,image:libraryImages.find(i=>i.group==="stamp" && i.id===preferences.image) || null};
+  classic={...classic,image:libraryImages.find(i=>i.group==="stamp" && i.mm && i.id===preferences.image) || null};
 });
