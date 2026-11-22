@@ -39,18 +39,20 @@
 
 ## 下载安装
 
-从 [GitHub Releases](https://github.com/KevinLADLee/paperseal/releases/latest) 选择与你的系统匹配的文件，也可以使用下表直接下载 v0.3.3。
+从 [GitHub Releases](https://github.com/KevinLADLee/paperseal/releases/latest) 选择与你的系统匹配的文件，也可以使用下表直接下载 v0.4.0。
 
-| 系统 | 下载 v0.3.3 | 启动方式 |
+| 系统 | 下载 v0.4.0 | 启动方式 |
 | --- | --- | --- |
-| Windows 11 x64 | [便携版 EXE](https://github.com/KevinLADLee/paperseal/releases/download/v0.3.3/Paperseal-Windows-11-x64.exe) | 双击运行，需要 Microsoft Edge WebView2 运行时。 |
-| Ubuntu 22.04 x86-64 | [AppImage 压缩包](https://github.com/KevinLADLee/paperseal/releases/download/v0.3.3/Paperseal-Ubuntu-22.04-x86_64.tar.gz) | 解开 `.tar.gz`，运行其中的 AppImage。 |
-| Ubuntu 24.04 x86-64 | [AppImage 压缩包](https://github.com/KevinLADLee/paperseal/releases/download/v0.3.3/Paperseal-Ubuntu-24.04-x86_64.tar.gz) | 解开 `.tar.gz`，运行其中的 AppImage。 |
+| Windows 11 x64 | [便携版 EXE](https://github.com/KevinLADLee/paperseal/releases/download/v0.4.0/Paperseal-Windows-11-x64.exe) | 双击运行，需要 Microsoft Edge WebView2 运行时。 |
+| Ubuntu 22.04 x86-64 | [AppImage 压缩包](https://github.com/KevinLADLee/paperseal/releases/download/v0.4.0/Paperseal-Ubuntu-22.04-x86_64.tar.gz) | 解开 `.tar.gz`，运行其中的 AppImage。 |
+| Ubuntu 24.04 x86-64 | [AppImage 压缩包](https://github.com/KevinLADLee/paperseal/releases/download/v0.4.0/Paperseal-Ubuntu-24.04-x86_64.tar.gz) | 解开 `.tar.gz`，运行其中的 AppImage。 |
 
 Ubuntu 缺少 FUSE 2 时，可在解压目录运行以下命令，24.04 用户将文件名中的版本替换为 `24.04`。
 
 ```sh
 APPIMAGE_EXTRACT_AND_RUN=1 ./Paperseal-Ubuntu-22.04-x86_64.AppImage
 ```
+
+纸印自身代码采用 [GNU AGPL 第 3 版](LICENSE)（AGPL-3.0-only）。第三方组件适用各自的许可证。
 
 [参与贡献](contribute.md)
