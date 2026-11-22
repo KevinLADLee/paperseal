@@ -4,7 +4,7 @@
 
 给一份多页 PDF 盖骑缝章，在签章页点一下放上完整印章，再存成一份新 PDF。文件、印章和签字图片都留在自己的电脑上。
 
-[下载最新版](https://github.com/KevinLADLee/paperseal/releases/latest) · [第一次盖章](#第一次盖章) · [从源码运行](#从源码运行) · [反馈问题](https://github.com/KevinLADLee/paperseal/issues)
+[下载最新版](https://github.com/KevinLADLee/paperseal/releases/latest) · [第一次盖章](#第一次盖章) · [反馈问题](https://github.com/KevinLADLee/paperseal/issues)
 
 ## 第一次盖章
 
@@ -53,30 +53,4 @@ Ubuntu 缺少 FUSE 2 时，可在解压目录运行以下命令，24.04 用户�
 APPIMAGE_EXTRACT_AND_RUN=1 ./Paperseal-Ubuntu-22.04-x86_64.AppImage
 ```
 
-## 从源码运行
-
-Ubuntu 以 22.04 x86-64 为构建基线。准备稳定版 Rust 和 Python 3，然后在仓库根目录运行下列命令。
-
-```sh
-sudo apt update
-sudo apt install build-essential pkg-config libssl-dev libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
-python3 tools/prepare.py
-cargo run --locked -p pdf-seal
-```
-
-`prepare.py` 首次下载固定版本的 PDF.js 并校验 SHA-512，之后复用缓存。修改 `ui/` 后重新运行该脚本。开发时可用下列命令测试盖章布局及 PDF 导出，并生成本机的 Debian 安装包。
-
-```sh
-cargo test --locked -p seal-core
-cargo build --locked --release -p pdf-seal
-bash tools/package-deb.sh
-```
-
-Windows 使用稳定版 Rust 的 MSVC 工具链、Visual Studio C++ Build Tools、Windows SDK、Python 3 和 WebView2。在仓库根目录运行以下命令，默认产物为 `target/release/pdf-seal.exe`。
-
-```powershell
-python tools/prepare.py
-cargo build --locked --release -p pdf-seal
-```
-
-[core/](core/) 包含骑缝分组、坐标换算与 PDF 导出，[desktop/](desktop/) 负责 Tauri 窗口和本地文件操作，[ui/](ui/) 提供 PDF.js 预览与印章交互。[导出测试](core/tests/export.rs) 覆盖分组交接页、旋转和裁剪后的页面等边界情况。
+[参与贡献](contribute.md)
